@@ -14,6 +14,8 @@ main:
     slli s2, s1, 1 # int height = size << 1;
     li s3, 0 # char ch = '\0';
     andi s4, s0, 15
+
+do_start:
     
     mv s5, s2 # int r = height;
  
@@ -53,7 +55,7 @@ for_loop:
     li s3, 32 # ch = ' ';
     
     # if (c == left)
-    bne t3, t1, c_unequal_to_left # skip checks
+    bne t3, t1, elif_c_eq_right # skip checks
 
     # if (r == height)
     beq s5, s2, r_equals_height
@@ -65,9 +67,9 @@ for_loop:
     beqz s5, r_equals_zero
     
     # else if  (r > size)
-    blt s1, s5, r_lt_size_and_left_equals_c
+    blt s1, s5, r_gt_size_and_left_equals_c
     # else
-    li s3, 92 # ch = '\\'
+    li s3, 0x5C # ch = '\\'
     j end_cond
     
 r_equals_height:
@@ -82,15 +84,58 @@ r_equals_zero:
     li s3, 0x56 # ch = 'V';
     j end_cond
     
-r_lt_size_and_left_equals_c:
+r_gt_size_and_left_equals_c:
     li s3, 0x2F # ch = '/';
     j end_cond
 
-c_unequal_to_left:
     # else if (c == right)
+elif_c_eq_right:
+    bne t3, t2, elif_c_gt_left_and_c_lt_right
+    # if (r == size) and right eq c:
+    beq s5, s1, r_equals_size_and_right_equals_c
+    # else if (r > size)
+    blt s1, s5, r_gt_size_and_right_eq_c
+    # else 
+    li s3, 0x2F
+    j end_cond
+    
+r_equals_size_and_right_equals_c:
+    li s3,0x3E
+    j end_cond
+
+r_gt_size_and_right_eq_c:
+    li s3, 0x5C
+    j end_cond
+
     # else if (c > left && c < right)
+elif_c_gt_left_and_c_lt_right:
+    # alternatively, if c <= left, or c >= right, branch to elif_c_gt_right
+    bge t1, t3, elif_c_gt_right
+    bge t3, t2, elif_c_gt_right
+    # if level >= r + 1
+    addi t4, s5, 1 # t4 = r + 1
+    bge s4, t4, level_geq_rplusone
+    j end_cond
+    
+level_geq_rplusone:
+    blt zero, s4, ch_zero_plus_num
+    j end_cond
+    
+ch_zero_plus_num:
+    li t5, 48 # '0'
+    add s3, t5, t0
+    li t5, 57 # '9'
+    blt t5, s3, ch_add_39
+    j end_cond
+    
+ch_add_39:
+    addi s3, s3, 39
+    j end_cond
+    
+elif_c_gt_right:
     # else if c > right { break; }
     blt t2, t3, for_end
+    j end_cond
     
 end_cond:
     # printf("%c", ch);
@@ -103,6 +148,21 @@ end_cond:
     j for_loop
     
 for_end:
+    li s3, 10
+    mv a0, s3
+    li a7, 11
+    ecall
+    addi s5, s5, -1
+    j while_r
     
+
 end_while_r:
-    nop
+    addi s4, s4, -1
+    ble s4, zero, exit_do
+    ble s1, zero, exit_do
+    j do_start
+
+exit_do:
+    li a0, 0
+    li a7, 10
+    ecall
