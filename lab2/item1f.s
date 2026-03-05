@@ -1,21 +1,11 @@
-main:
-    li a0, -1
-    call factorial
-    
-    li a7, 1
-    ecall
-    
-    li a7, 10
-    ecall
-
 # n = a0, return value in a0
+
 factorial:
     addi sp, sp, -8
-    sw ra, 4(sp)
-    sw a0, 0(sp)
+    sw a0, 4(sp)
+    sw ra, 0(sp)
     
     blt a0, zero, factorial_neg
-    
     li t0, 1
     # elif (n <= 1)
     bge t0, a0, factorial_one
