@@ -1,5 +1,5 @@
 main:
-    li a0, -1
+    li a0, -1 # input value
     call factorial
     
     li a7, 1
