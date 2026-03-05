@@ -1,0 +1,63 @@
+Item 1b
+Consider the following RISC-V program:
+
+.text
+
+main:
+    la   a0, numbers
+    li   a1, 4
+    li   a2, 21
+    jal  ra, start_idx
+
+    li a7, 1
+    ecall
+
+    li a7, 10
+    ecall
+
+start_idx:
+    li   a3, 0
+
+loop:
+    beq  a3, a1, branch_b
+
+    lw   t0, 0(a0)
+    beq  t0, a2, branch_a
+
+    addi a0, a0, 4
+    addi a3, a3, 1
+    jal  zero, loop
+
+branch_a:
+    mv   a0, a3
+    jalr zero, ra, 0
+
+branch_b:
+    li   a0, -1
+    jalr zero, ra, 0
+
+.data
+
+numbers: .word 20, 21, 140, 145
+
+What does the program do?
+The program iterates through the array numbers, looking for 21, and prints its index. If not found, it prints -1.
+
+How many iterations of loop will occur before the program reaches the branch_a label?
+2 iterations.
+
+What would happen if the line li a2, 21 were to be replaced by li a2, 150? Trace the values of a0, a1, a2, and a3 across each iteration.
+The loop runs 4 iterations, then returns -1 since 150 is not in the array.
+
+Trace of a0:
+&numbers[0]
+&numbers[1]
+&numbers[2]
+&numbers[3]
+&numbers[4]
+
+Trace of a1 = 4 (constant)
+
+Trace of a2 = 150 (constant)
+
+Trace of a3 = 0 -> 1 -> 2 -> 3 -> 4

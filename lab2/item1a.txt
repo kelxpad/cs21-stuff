@@ -1,0 +1,39 @@
+akeHOPE Problems
+Item 1: Practice Exercises
+Item 1a
+Consider the following RISC-V program:
+
+.text
+
+main:
+    li a0, 0x10000000
+    li t1, 4
+    li t0, 0
+
+loop:
+    lw   t2, 0(a0)
+    add  t0, t0, t2
+    addi t2, t2, 2
+    sw   t2, 0(a0)
+    addi a0, a0, 4
+    addi t1, t1, -1
+    bne  t1, zero, loop
+
+.data
+
+.word 0x20
+.word 0x21
+.word 0x140
+.word 0x145
+What are the final values of the registers a0, t0, t1, and t2?
+a0 = 0x10000010
+t0 = 0x2C6
+t1 = 0
+t2 = 0x147
+
+What are the words stored in the following memory addresses?
+0x10000000 = 0x22
+0x10000004 = 0x23
+0x10000008 = 0x142
+0x1000000c = 0x147
+0x10000010 = unchanged/undefined (nothing stored here)

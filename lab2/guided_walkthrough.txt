@@ -1,0 +1,65 @@
+# `main` omitted for brevity 
+
+# Modifies ra, a0, a7, s0, s1, s2
+f:                       # int f(int a0) {
+  mv s0, a0              #   int n_s0 = a0;
+
+  li a7, 1               #   printf("%d", n_s0);
+  mv a0, s0
+  ecall
+
+  li a7, 11              #   printf("\n");
+  li a0, 10
+  ecall
+
+  mv a0, s0              #   a0 = n_s0;
+  call g                 #   a0 = g(a0);
+  mv s1, a0              #   int k_s1 = a0;
+
+  li s2, 1               #   int tmp_s2 = 1;
+
+  blt s2, s0, f__else    #   if (n_s0 <= tmp_s2) {
+  mv a0, s1              #     a0 = k_s1;
+  j f__ret               #     return a0;
+f__else:                 #   } else {
+  li s2, 2               #     tmp_s2 = 2;
+  bne s0, s2, f__else_2  #     if (n_s0 == tmp_s2) {
+  li a0, 1               #       a0 = 1;
+  j f__ret               #       return a0;
+f__else_2:               #     } else {
+  addi a0, s0, -1        #       a0 = n_s0 - 1;
+  call f                 #       a0 = f(a0);
+  add s3, s1, a0         #       int ret_s3 = k_s1 + a0;
+
+  li a7, 1               #       printf("%d", n_s0);
+  mv a0, s0
+  ecall
+
+  li a7, 11                  #       printf("\n");
+  li a0, 10
+  ecall
+
+  mv a0, s3                  #       a0 = ret_s3;
+  j f__ret                   #       return a0;
+                             #     }
+                             #   }
+                             # }
+f__ret:
+  ret
+
+# `.data` omitted for brevity 
+
+Self-check:
+The comment says that f modifies ra. Where exactly does f modify ra?
+- call g is essentially jal ra, g, the address of the next instruction is stored into ra and the control jumps to g.
+- thats how ra is modified without being called explicitly.
+- ra is modified, but never saved
+
+Why is the first `mv a0, s0` redundant? Why would it still be beneficial to retain it despite the redundancy?
+- because a0 already contains the argument and nothing was modified.
+- its still beneficial because it protects against future edits and makes the function structure clearer
+
+Notes:
+Rule 1: If a function calls another function, save ra
+Rule 2: If you use s registers, save and restore them.
+Rule 3: Leaf functions don't need stack frames.
