@@ -63,3 +63,5 @@ int mystery4(int a0) {
 
     return t0; // final result stored in t0
 }
+
+// note: label stack slots as what they re doing, then write a register-based C
