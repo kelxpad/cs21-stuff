@@ -4,8 +4,17 @@ main:
     li t1, 0 # i = 0
 
 collatz:
+    li a7, 1
+    ecall # print int
+    
     # store current n into array
     sw a0, 0(t0)
+    
+    li a0, 32
+    li a7, 11
+    ecall
+    
+    lw a0, 0(t0)
     addi t0, t0, 4 # move pointer
     addi t1, t1, 1 # incr length
     
@@ -28,7 +37,7 @@ collatz_odd:
     
 collatz_end:
     # setup pointers
-    la t2, hailstone
+    la t2, hailstone # left pointer
     addi t3, t1, -1 # k = length - 1
     slli t3, t3, 2 # int size = 4 so k*4
     la t4, hailstone
@@ -56,12 +65,19 @@ sum_loop:
     j sum_loop
 
 sum_done:
+    sw a0, 0(t0) # store result because were gonna print newline
+    
+    li a0, 10
+    li a7, 11
+    ecall
+    
+    lw a0, 0(t0) # bring back result
+    
     li a7, 1
     ecall
     
     li a7, 10
     ecall
-    
     
 .data
 hailstone: .zero 400 # space for 100 ints
