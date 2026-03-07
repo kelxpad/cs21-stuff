@@ -34,25 +34,22 @@ retain_letters:
     # if (ch == '\0') { return; }
     lb t4, 0(a0)
     beq t4, zero, retain_letters_ret
-    
-    
+
     # else if (('A' <= ch && ch <= 'Z') || ('a' <= ch && ch <= 'z'))
-    li t0 0x40 # @
-    li t1 0x5B # open bracket
-    li t2 0x60 # `
-    li t3 0x7B # {
+    li t0, 0x40 # @
+    li t1, 0x5B # [
+    li t2, 0x60 # `
+    li t3, 0x7B # {
     
-    # filter out special characters
+    slt t0, t0, t4 # t0 = (t0 < t4) ? 1 : 0
+    slt t1, t4, t1 # t1 = (t4 < t1) ? 1 : 0
+    slt t2, t2, t4 # t2 = (t2 < t4) ? 1 : 0
+    slt t3, t4, t3 # t3 = (t4 < t3) ? 1 : 0
     
-    slt t0, t0, t4
-    slt t1, t4, t1
-    slt t2, t2, t4
-    slt t3, t4, t3
+    and t0, t0, t1 # uppercase
+    and t1, t2, t3 # lowercase
+    or t0, t0, t1 # in range
     
-    and t0, t0, t1
-    and t1, t2, t3
-    or t0, t0, t1
- 
     beq t0, zero, skip_store
     
     # if letter
