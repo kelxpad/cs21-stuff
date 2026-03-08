@@ -18,21 +18,20 @@ int main(int argc, char *argv[]) {
             return 1;
         }
 
-        fread(&timestamp, sizeof(time_t), 1, f);
-        timestamp += 5;  // extend by 5 seconds
+        timestamp = time(NULL) + 5;  // extend by 5 seconds
 
         rewind(f);
         fwrite(&timestamp, sizeof(time_t), 1, f);
         fclose(f);
 
-        printf("Trial extended by 5 seconds\n");
+        printf("Trial extended by 5 seconds!\n");
 
     } else if (strcmp(argv[1], "2") == 0) {
 
         FILE *f = fopen("lab04", "r+b");
         if (!f) { return 1; }
 
-        unsigned int patched = 0x00079a63;
+        unsigned int patched = 0x00079a63; // bnez a5, 105b8 <main+0x2c>
 
         fseek(f, 0x5a4, SEEK_SET);
         fwrite(&patched, sizeof(patched), 1, f);
@@ -40,17 +39,58 @@ int main(int argc, char *argv[]) {
         fclose(f);
 
         printf("Patched main trial check!\n");
-    }
+    } else if (strcmp(argv[1], "3") == 0) {
+        FILE *f = fopen("lab04", "r+b");
+        if (!f) { return 1; }
 
+        unsigned int inst1 = 0x00000513; // li a0,0
+        unsigned int inst2 = 0x00008067; // ret
+
+        fseek(f, 0x438, SEEK_SET);
+        fwrite(&inst1, sizeof(inst1), 1, f);
+        fwrite(&inst2, sizeof(inst2), 1, f);
+
+        fclose(f);
+
+        printf("Patched check_trial to always succeed!");
+    }
     return 0;
 }
 
 /*
-Item 1:
-Item 2:
-Item 3:
+EXPLANATIONS
+Item 1: The program stores the trial expiration time as a Unix timestamp 
+in "/var/tmp/.lab04".
+To extend the trial period via `./checkpoint 1`, the program writes a new 
+timestamp equal to the current Unix time plus 5 seconds.
 
+This sets the expiration time to 5 seconds in the future, causing the 
+program to report that the trial period still has a few seconds remaining
+when `qemu-riscv32 ./lab04` is executed immediately afterward.
+
+Item 2:
+The conditional branch in main that controls the trial expiration logic was modified:
+
+   105a4:	      /-- 00078a63          	beqz	a5,105b8 <main+0x2c>
+to
+   105a4:	      /-- 00079a63          	bnez	a5,105b8 <main+0x2c>
+
+This reverses the branch condition, effectively bypassing the code path that prints
+"Trial period has lapsed", allowing the code to continue execution regardless of the 
+trial status.
+
+Item 3: 
+The beginning of the check_trial function was patched so that it immediately returns 0 (success).
+
+   10438:	       fd010113          	addi	sp,sp,-48
+   1043c:	       02112623          	sw	ra,44(sp)
+to
+   10438:	       00000513          	li	a0,0
+   1043c:	       00008067          	ret
+
+As a result, the trial period check has no effect when the `./lab04` is executed.
 */
+
 
 /*
 SCRATCH WORK
