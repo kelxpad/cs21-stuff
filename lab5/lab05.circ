@@ -5414,8 +5414,7 @@
     <comp lib="5" loc="(270,250)" name="ROM">
       <a name="appearance" val="classic"/>
       <a name="contents">addr/data: 8 32
-2537 112232b7 34428293 552023 aabbd337 cdd30313 652223 f0e13b7
-d0c38393 752423 52083 452103 852183 fff00413 852223 452203
+93 8002ef 6f00113 a08093
 </a>
       <a name="dataWidth" val="32"/>
       <a name="label" val="InstMem"/>
@@ -5777,12 +5776,17 @@ d0c38393 752423 52083 452103 852183 fff00413 852223 452203
       <a name="value" val="0x17"/>
       <a name="width" val="7"/>
     </comp>
-    <comp lib="0" loc="(1190,470)" name="Tunnel">
+    <comp lib="0" loc="(1160,510)" name="Tunnel">
       <a name="facing" val="east"/>
       <a name="label" val="IsAUIPC"/>
     </comp>
-    <comp lib="0" loc="(1190,470)" name="Tunnel">
-      <a name="label" val="UsePC"/>
+    <comp lib="0" loc="(1160,540)" name="Tunnel">
+      <a name="facing" val="east"/>
+      <a name="label" val="IsJAL"/>
+    </comp>
+    <comp lib="0" loc="(1160,570)" name="Tunnel">
+      <a name="facing" val="east"/>
+      <a name="label" val="Branch"/>
     </comp>
     <comp lib="0" loc="(120,450)" name="Tunnel">
       <a name="facing" val="east"/>
@@ -5841,6 +5845,9 @@ d0c38393 752423 52083 452103 852183 fff00413 852223 452203
     <comp lib="0" loc="(120,770)" name="Constant">
       <a name="value" val="0x0"/>
       <a name="width" val="7"/>
+    </comp>
+    <comp lib="0" loc="(1240,540)" name="Tunnel">
+      <a name="label" val="UsePC"/>
     </comp>
     <comp lib="0" loc="(130,750)" name="Tunnel">
       <a name="facing" val="east"/>
@@ -6157,6 +6164,10 @@ d0c38393 752423 52083 452103 852183 fff00413 852223 452203
     <comp lib="1" loc="(1020,470)" name="OR Gate">
       <a name="size" val="30"/>
     </comp>
+    <comp lib="1" loc="(1210,540)" name="OR Gate">
+      <a name="inputs" val="3"/>
+      <a name="size" val="30"/>
+    </comp>
     <comp lib="2" loc="(230,1040)" name="Priority Encoder"/>
     <comp lib="2" loc="(580,480)" name="Multiplexer">
       <a name="enable" val="true"/>
@@ -6254,6 +6265,12 @@ d0c38393 752423 52083 452103 852183 fff00413 852223 452203
     <wire from="(110,1220)" to="(180,1220)"/>
     <wire from="(110,820)" to="(110,830)"/>
     <wire from="(110,820)" to="(130,820)"/>
+    <wire from="(1160,510)" to="(1170,510)"/>
+    <wire from="(1160,540)" to="(1180,540)"/>
+    <wire from="(1160,570)" to="(1180,570)"/>
+    <wire from="(1170,510)" to="(1170,530)"/>
+    <wire from="(1170,530)" to="(1180,530)"/>
+    <wire from="(1180,550)" to="(1180,570)"/>
     <wire from="(120,1020)" to="(120,1040)"/>
     <wire from="(120,1020)" to="(190,1020)"/>
     <wire from="(120,450)" to="(130,450)"/>
@@ -6269,6 +6286,7 @@ d0c38393 752423 52083 452103 852183 fff00413 852223 452203
     <wire from="(120,700)" to="(130,700)"/>
     <wire from="(120,720)" to="(130,720)"/>
     <wire from="(120,770)" to="(130,770)"/>
+    <wire from="(1210,540)" to="(1240,540)"/>
     <wire from="(130,1030)" to="(130,1070)"/>
     <wire from="(130,1030)" to="(190,1030)"/>
     <wire from="(140,1040)" to="(140,1100)"/>
@@ -7566,6 +7584,11 @@ d0c38393 752423 52083 452103 852183 fff00413 852223 452203
       <a name="facing" val="east"/>
       <a name="label" val="BranchTaken"/>
     </comp>
+    <comp lib="0" loc="(430,400)" name="Tunnel">
+      <a name="facing" val="east"/>
+      <a name="label" val="BGETaken"/>
+      <a name="labelfont" val="SansSerif bold 9"/>
+    </comp>
     <comp lib="0" loc="(430,420)" name="Tunnel">
       <a name="facing" val="east"/>
       <a name="label" val="BGEUTaken"/>
@@ -7574,11 +7597,6 @@ d0c38393 752423 52083 452103 852183 fff00413 852223 452203
     <comp lib="0" loc="(430,440)" name="Tunnel">
       <a name="facing" val="east"/>
       <a name="label" val="BEQTaken"/>
-      <a name="labelfont" val="SansSerif bold 9"/>
-    </comp>
-    <comp lib="0" loc="(430,460)" name="Tunnel">
-      <a name="facing" val="east"/>
-      <a name="label" val="BGETaken"/>
       <a name="labelfont" val="SansSerif bold 9"/>
     </comp>
     <comp lib="0" loc="(430,480)" name="Tunnel">
@@ -7750,10 +7768,9 @@ d0c38393 752423 52083 452103 852183 fff00413 852223 452203
     <wire from="(200,770)" to="(210,770)"/>
     <wire from="(200,840)" to="(200,850)"/>
     <wire from="(200,840)" to="(210,840)"/>
+    <wire from="(430,400)" to="(450,400)"/>
     <wire from="(430,420)" to="(440,420)"/>
     <wire from="(430,440)" to="(510,440)"/>
-    <wire from="(430,450)" to="(430,460)"/>
-    <wire from="(430,450)" to="(510,450)"/>
     <wire from="(430,480)" to="(440,480)"/>
     <wire from="(430,500)" to="(450,500)"/>
     <wire from="(430,520)" to="(460,520)"/>
@@ -7761,6 +7778,8 @@ d0c38393 752423 52083 452103 852183 fff00413 852223 452203
     <wire from="(440,430)" to="(510,430)"/>
     <wire from="(440,460)" to="(440,480)"/>
     <wire from="(440,460)" to="(510,460)"/>
+    <wire from="(450,400)" to="(450,420)"/>
+    <wire from="(450,420)" to="(510,420)"/>
     <wire from="(450,470)" to="(450,500)"/>
     <wire from="(450,470)" to="(510,470)"/>
     <wire from="(460,480)" to="(460,520)"/>
