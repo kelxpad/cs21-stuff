@@ -1,0 +1,3 @@
+v3.0 hex words
+ffd00093
+ff90a193

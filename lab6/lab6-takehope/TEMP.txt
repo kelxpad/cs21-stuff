@@ -1,3 +1,0 @@
-    0:        00100093        addi x1 x0 1
-    4:        fff00113        addi x2 x0 -1
-    8:        0020b1b3        sltu x3 x1 x2
