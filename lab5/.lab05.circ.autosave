@@ -99,7 +99,7 @@
     <a name="appearance" val="logisim_evolution"/>
     <a name="circuit" val="scp"/>
     <a name="circuitnamedboxfixedsize" val="true"/>
-    <a name="simulationFrequency" val="32.0"/>
+    <a name="simulationFrequency" val="1.0"/>
     <comp lib="0" loc="(100,410)" name="Probe">
       <a name="appearance" val="NewPins"/>
       <a name="facing" val="south"/>
@@ -5424,7 +5424,7 @@
     <comp lib="5" loc="(270,250)" name="ROM">
       <a name="appearance" val="classic"/>
       <a name="contents">addr/data: 8 32
-10000093 ee00193 3080a3 a583 108603 10c683 33
+10000093 aa00113 208023 8183 c203
 </a>
       <a name="dataWidth" val="32"/>
       <a name="label" val="InstMem"/>
