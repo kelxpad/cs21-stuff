@@ -49,6 +49,7 @@ class CPU:
         # initialize register values (if applicable) here
         self.regs[Reg.SP] = RAM_STACK_END
 
+        self.button = 0
         self.tick_counter = 0
         self.rng = random.Random(seed)
         self.instructions_executed = 0
@@ -56,7 +57,7 @@ class CPU:
     def decode(self) -> DecodedInstruction:
         pc = self.regs[Reg.PC]
 
-        instr_word = self.memory[pc]
+        instr_word = self.memory_read(pc)
 
         # bits 4-0 = opcode
         opcode = instr_word & 0x1F
@@ -128,7 +129,7 @@ class CPU:
         first = self.decode()
 
         next_pc = (pc + self.instruction_width(first) // 2)
-        next_word = self.memory[next_pc]
+        next_word = self.memory_read(next_pc)
 
         opcode = next_word & 0x1F
         op2 = (next_word >> 5) & 0x1F
@@ -144,10 +145,35 @@ class CPU:
         return (next_pc + self.instruction_width(second) // 2)
 
     def memory_read(self, addr):
-        return self.memory[addr]
+        addr &= WORD_MASK
+        
+        if addr == BUTTON_ADDR:
+            return self.button & 0x0001
+        
+        if addr == TICK_ADDR:
+            return self.tick_counter & WORD_MASK
+        
+        if addr == RNG_ADDR:
+            return self.rng.randrange(0x10000)
+        
+        return self.memory[addr] & WORD_MASK
     
     def memory_write(self, addr, value):
-        self.memory[addr]= value & WORD_MASK
+        addr &= WORD_MASK
+        value &= WORD_MASK
+
+        if addr == BUTTON_ADDR:
+            self.button = value & 0x0001
+            return
+        
+        if addr == TICK_ADDR:
+            self.tick_counter = value
+            return
+        
+        if addr == RNG_ADDR:
+            return
+        
+        self.memory[addr] = value
     
     def operand_immediate(self, decoded: DecodedInstruction, operand_index: int) -> int:
         pc = self.regs[Reg.PC]
@@ -519,14 +545,34 @@ class CPU:
         op1 = op1 + op2 + REG[tm]
         REG[tm] = 0x0001 if overflow else 0x0
         """
-        ...
+        a = self.read_operand(decoded, 1)
+        b = self.read_operand(decoded, 2)
+
+        # make sure TM is a 16-bit register
+        tm = self.regs[Reg.TM] & WORD_MASK
+        result = a + b + tm
+        self.regs[Reg.TM] = (0x0001 if result > WORD_MASK else 0x0000)
+
+        self.write_operand(decoded, 1, result & WORD_MASK)
+        self.advance_pc()
+
     
     def execute_subt(self, decoded: DecodedInstruction) -> None:
         """
         op1 = op1 - op2 + REG[tm]
         REG[tm] = 0xffff if underflow else 0x0
         """
-        ...
+        a = self.read_operand(decoded, 1)
+        b = self.read_operand(decoded, 2)
+
+        # NOTE: ambiguous whether REG[tm] is supposed to be treated as a 
+        # signed/unsigned value, assuming unsigned for now
+        tm = self.regs[Reg.TM] & WORD_MASK
+
+        result = a - b + tm
+        self.regs[Reg.TM] = (0xFFFF if result < 0 else 0x0000)
+        self.write_operand(decoded, 1, result & WORD_MASK)
+        self.advance_pc()
 
     def execute_seti(self, decoded: DecodedInstruction) -> None:
         """
@@ -534,7 +580,12 @@ class CPU:
         REG[gg] += 1
         REG[gh] += 1
         """
-        ...
+        b = self.read_operand(decoded, 2)
+        self.write_operand(decoded, 1, b & WORD_MASK)
+        self.regs[Reg.GG] = (self.regs[Reg.GG] + 1) & WORD_MASK
+        self.regs[Reg.GH] = (self.regs[Reg.GH] + 1) & WORD_MASK
+        self.advance_pc()
+
 
     def execute_setd(self, decoded: DecodedInstruction) -> None:
         """
@@ -542,7 +593,11 @@ class CPU:
         REG[gg] -= 1
         REG[gh] -= 1
         """
-        ...
+        b = self.read_operand(decoded, 2)
+        self.write_operand(decoded, 1, b & WORD_MASK)
+        self.regs[Reg.GG] = (self.regs[Reg.GG] - 1) & WORD_MASK
+        self.regs[Reg.GH] = (self.regs[Reg.GH] - 1) & WORD_MASK
+        self.advance_pc()
 
     def step(self):
         """
@@ -556,6 +611,8 @@ class CPU:
             raise NotImplementedError(f"opcode {decoded.opcode:#x}")
         
         handler(decoded)
+        self.instructions_executed += 1
+        self.tick_counter += 1
         print(disassemble(decoded))
         ...
 
