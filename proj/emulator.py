@@ -111,6 +111,9 @@ class CPU:
         # imm == 2
         return 6
     
+    def advance_pc(self) -> None:
+        self.regs[Reg.PC] = self.next_pc()
+
     def next_pc(self) -> int:
         # word-addressed memory so divide by 2
         decoded = self.decode()
@@ -255,24 +258,28 @@ class CPU:
         """op1 = op2"""
         b = self.read_operand(decoded, 2)
         self.write_operand(decoded, 1, b & WORD_MASK)
+        self.advance_pc()
     
     def execute_and(self, decoded: DecodedInstruction) -> None:
         """op1 = op1 & op2 """
         a = self.read_operand(decoded, 1)
         b = self.read_operand(decoded, 2)
         self.write_operand(decoded, 1, (a & b) & WORD_MASK)
+        self.advance_pc()
 
     def execute_or(self, decoded: DecodedInstruction) -> None:
         """op1 = op1 | op2"""
         a = self.read_operand(decoded, 1)
         b = self.read_operand(decoded, 2)
         self.write_operand(decoded, 1, (a | b) & WORD_MASK)
+        self.advance_pc()
 
     def execute_xor(self, decoded: DecodedInstruction) -> None:
         """op1 = op1 ^ op2"""
         a = self.read_operand(decoded, 1)
         b = self.read_operand(decoded, 2)
         self.write_operand(decoded, 1, (a ^ b) & WORD_MASK)
+        self.advance_pc()
 
     def execute_add(self, decoded: DecodedInstruction) -> None:
         """op1 = op1 + op2, REG[tm] = 0x0001 if overflow else 0x0"""
@@ -283,6 +290,7 @@ class CPU:
         self.regs[Reg.TM] = (0x0001 if result > WORD_MASK else 0x0000)
 
         self.write_operand(decoded, 1, result & WORD_MASK)
+        self.advance_pc()
 
     def execute_sub(self, decoded: DecodedInstruction) -> None:
         """op1 = op1 - op2, REG[tm] = 0xffff if underflow else 0x0"""
@@ -292,7 +300,7 @@ class CPU:
         result = a - b
         self.regs[Reg.TM] = 0xFFFF if result < 0 else 0x0000
         self.write_operand(decoded, 1, result & WORD_MASK)
-
+        self.advance_pc()
     
     def execute_mulu(self, decoded: DecodedInstruction) -> None:
         """op1 = op1 * op2 (unsigned), REG[tm] = ((op1 * op2) >> 16) & 0xffff (unsigned)"""
@@ -301,6 +309,7 @@ class CPU:
         product = a * b
         self.regs[Reg.TM] = (product >> 16) & WORD_MASK
         self.write_operand(decoded, 1, product & WORD_MASK)
+        self.advance_pc()
 
     def execute_muls(self, decoded: DecodedInstruction) -> None:
         """mulu but signed"""
@@ -309,6 +318,7 @@ class CPU:
         product = a * b
         self.regs[Reg.TM] = (product >> 16) & WORD_MASK
         self.write_operand(decoded, 1, product & WORD_MASK)
+        self.advance_pc()
 
     def execute_divu(self, decoded: DecodedInstruction) -> None:
         """
@@ -329,7 +339,8 @@ class CPU:
 
         self.regs[Reg.TM] = ((remainder << 16) // divisor) & WORD_MASK
         self.write_operand(decoded, 1, quotient & WORD_MASK) # word mask
-    
+        self.advance_pc()
+ 
     def execute_divs(self, decoded: DecodedInstruction) -> None:
         """divu but signed, note that // rounds toward negative infinity
         so we use int(dividend / divisor) instead"""
@@ -345,7 +356,8 @@ class CPU:
         remainder = dividend - quotient * divisor
         self.regs[Reg.TM] = (((remainder << 16) // abs(divisor)) & WORD_MASK)
         self.write_operand(decoded, 1, quotient & WORD_MASK)
-    
+        self.advance_pc()
+
     def execute_modu(self, decoded: DecodedInstruction) -> None:
         """op1 = (op1 % op2) if op2 != 0 else 0"""
         a = self.read_operand(decoded, 1) & WORD_MASK
@@ -357,6 +369,7 @@ class CPU:
 
         result = a % b
         self.write_operand(decoded, 1, result & WORD_MASK)
+        self.advance_pc()
 
     def execute_mods(self, decoded: DecodedInstruction) -> None:
         """modu and we also take note of that // quirk from divs"""
@@ -371,6 +384,7 @@ class CPU:
         r = sa - q * sb
         
         self.write_operand(decoded, 1, r & WORD_MASK)
+        self.advance_pc()
 
     def execute_srl(self, decoded: DecodedInstruction) -> None:
         """
@@ -388,6 +402,7 @@ class CPU:
         self.regs[Reg.TM] = ((a << 16) >> shift) & WORD_MASK
 
         self.write_operand(decoded, 1, result & WORD_MASK)
+        self.advance_pc()
 
     def execute_sra(self, decoded: DecodedInstruction) -> None:
         """srl with signed interpretation"""
@@ -398,6 +413,7 @@ class CPU:
 
         self.regs[Reg.TM] = ((unsigned_a << 16) >> shift) & WORD_MASK
         self.write_operand(decoded, 1, result & WORD_MASK)
+        self.advance_pc()
 
     def execute_sll(self, decoded: DecodedInstruction) -> None:
         """
@@ -412,10 +428,121 @@ class CPU:
         self.regs[Reg.TM] = (full >> 16) & WORD_MASK
 
         self.write_operand(decoded, 1, full & WORD_MASK)
+        self.advance_pc()
 
     # Branch-Control Flow-type operations
 
-    # Special Instructions
+    # the branch helper
+    def branch(self, condition: bool) -> None:
+        self.regs[Reg.PC] = (self.next_pc() if condition else self.next_next_pc())
+
+    def execute_jmp(self, decoded: DecodedInstruction) -> None:
+        """
+        REG[sp] -= 1
+        MEM[REG[sp]] = NextPC
+        PC = op1
+        """
+        target = self.read_operand(decoded, 1) & WORD_MASK
+        self.regs[Reg.SP] = (self.regs[Reg.SP] - 1) & WORD_MASK
+        self.memory_write(self.regs[Reg.SP], self.next_pc())
+        self.regs[Reg.PC] = target
+    
+    def execute_ifany(self, decoded: DecodedInstruction) -> None:
+        """
+        PC = NextPC if (op1 & op2 != 0) else PC = NextNextPC
+        """
+        a = self.read_operand(decoded, 1)
+        b = self.read_operand(decoded, 2)
+        self.branch((a & b) != 0)
+    
+    def execute_ifnon(self, decoded: DecodedInstruction) -> None:
+        """
+        PC = NextPC if (op1 & op2 == 0) else PC = NextNextPC
+        """
+        a = self.read_operand(decoded, 1)
+        b = self.read_operand(decoded, 2)
+        self.branch((a & b) == 0)
+
+
+    def execute_ifeq(self, decoded: DecodedInstruction) -> None:
+        """
+        PC = NextPC if (op1 == op2) else PC = NextNextPC
+        """
+        a = self.read_operand(decoded, 1)
+        b = self.read_operand(decoded, 2)
+        self.branch(a == b)
+    
+    def execute_ifne(self, decoded: DecodedInstruction) -> None:
+        """
+        PC = NextPC if (op1 != op2) else PC = NextNextPC
+        """
+        a = self.read_operand(decoded, 1)
+        b = self.read_operand(decoded, 2)
+        self.branch(a != b)
+
+    def execute_ifgtu(self, decoded: DecodedInstruction) -> None:
+        """
+        PC = NextPC if (op1 > op2) else PC = NextNextPC (unsigned)
+        """
+        a = self.read_operand(decoded, 1) & WORD_MASK
+        b = self.read_operand(decoded, 2) & WORD_MASK
+        self.branch(a > b)
+
+    def execute_ifgts(self, decoded: DecodedInstruction) -> None:
+        """
+        PC = NextPC if (op1 > op2) else PC = NextNextPC (signed)
+        """
+        a = to_signed16(self.read_operand(decoded, 1))
+        b = to_signed16(self.read_operand(decoded, 2))
+        self.branch(a > b)
+    
+    def execute_ifltu(self, decoded: DecodedInstruction) -> None:
+        """
+        PC = NextPC if (op1 < op2) else PC = NextNextPC (unsigned)
+        """
+        a = self.read_operand(decoded, 1) & WORD_MASK
+        b = self.read_operand(decoded, 2) & WORD_MASK
+        self.branch(a < b)
+    
+    def execute_iflts(self, decoded: DecodedInstruction) -> None:
+        """
+        PC = NextPC if (op1 < op2) else PC = NextNextPC (signed)
+        """
+        a = to_signed16(self.read_operand(decoded, 1))
+        b = to_signed16(self.read_operand(decoded, 2))
+        self.branch(a < b)
+
+    # Other Instructions
+
+    def execute_addt(self, decoded: DecodedInstruction) -> None:
+        """
+        op1 = op1 + op2 + REG[tm]
+        REG[tm] = 0x0001 if overflow else 0x0
+        """
+        ...
+    
+    def execute_subt(self, decoded: DecodedInstruction) -> None:
+        """
+        op1 = op1 - op2 + REG[tm]
+        REG[tm] = 0xffff if underflow else 0x0
+        """
+        ...
+
+    def execute_seti(self, decoded: DecodedInstruction) -> None:
+        """
+        op1 = op2
+        REG[gg] += 1
+        REG[gh] += 1
+        """
+        ...
+
+    def execute_setd(self, decoded: DecodedInstruction) -> None:
+        """
+        op1 = op2
+        REG[gg] -= 1
+        REG[gh] -= 1
+        """
+        ...
 
     def step(self):
         """
