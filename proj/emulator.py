@@ -46,13 +46,18 @@ class CPU:
         self.memory = memory
         self.regs = [0] * len(Reg)
 
-        # initialize register values (if applicable) here
+        # initialize register values
         self.regs[Reg.SP] = RAM_STACK_END
 
         self.button = 0
         self.tick_counter = 0
         self.rng = random.Random(seed)
         self.instructions_executed = 0
+
+        self.handlers = {
+            opcode: getattr(self, f"execute_{name}") 
+            for opcode, name in INSTRUCTIONS.items()
+        }
 
     def decode(self) -> DecodedInstruction:
         pc = self.regs[Reg.PC]
@@ -358,6 +363,7 @@ class CPU:
         if divisor == 0:
             self.regs[Reg.TM] = 0
             self.write_operand(decoded, 1, 0)
+            self.advance_pc()
             return
         
         quotient = dividend // divisor
@@ -376,6 +382,7 @@ class CPU:
         if divisor == 0:
             self.regs[Reg.TM] = 0
             self.write_operand(decoded, 1, 0)
+            self.advance_pc()
             return
         
         quotient = int(dividend / divisor) # truncates towards zero
@@ -391,6 +398,7 @@ class CPU:
 
         if b == 0:
             self.write_operand(decoded, 1, 0)
+            self.advance_pc()
             return
 
         result = a % b
@@ -404,6 +412,7 @@ class CPU:
 
         if sb == 0:
             self.write_operand(decoded, 1, 0)
+            self.advance_pc()
             return
         
         q = int(sa / sb) # truncates towards zero
@@ -604,17 +613,19 @@ class CPU:
         Executes one Arch-252 instruction.
         """
         decoded = self.decode()
-
+        print(f"pc={self.regs[Reg.PC]:04X}", disassemble(decoded))        
         handler = self.handlers.get(decoded.opcode)
 
         if handler is None:
-            raise NotImplementedError(f"opcode {decoded.opcode:#x}")
+            raise NotImplementedError(
+                f"opcode {decoded.opcode:#x}"
+                f"({INSTRUCTIONS.get(decoded.opcode, '???')})"
+            )
         
         handler(decoded)
+
         self.instructions_executed += 1
-        self.tick_counter += 1
-        print(disassemble(decoded))
-        ...
+        self.tick_counter = (self.tick_counter + 1) & WORD_MASK # 16-bit value
 
 # mapping for @register+k
 REGISTER_PLUS_K = {
@@ -766,6 +777,27 @@ def dump_registers(cpu: CPU):
             f"{cpu.regs[reg]:04X}"
         )
 
+def run_headless(bin_path: str, instruction_count: int, seed: int) -> CPU:
+    if instruction_count < 0:
+        raise ValueError("ipf must be non-negative")
+
+    memory = load_binary(bin_path)
+    cpu = CPU(memory, seed)
+
+    for _ in range(instruction_count):
+        cpu.step()
+
+    return cpu
+
+def print_run_summary(bin_path: str, ipf: int, seed: int, cpu: CPU) -> None:
+    print(f"bin file = {bin_path}")
+    print(f"ipf      = {ipf}")
+    print(f"seed     = {seed}")
+    print(f"executed = {cpu.instructions_executed}")
+    print(f"tick     = {cpu.tick_counter:04X}")
+    print(f"pc       = {cpu.regs[Reg.PC]:04X}")
+    dump_registers(cpu)
+
 def disassemble(decoded: DecodedInstruction) -> str:
     mnemonic = INSTRUCTIONS.get(
         decoded.opcode,
@@ -773,8 +805,8 @@ def disassemble(decoded: DecodedInstruction) -> str:
     )
     return (
         f"{mnemonic}"
-        f"(op1={decoded.op1_encoding})"
-        f"(op2={decoded.op2_encoding})"
+        f"(op1={decoded.op1_encoding:04X})"
+        f"(op2={decoded.op2_encoding:04X})"
     )
 
 def main():
@@ -786,15 +818,8 @@ def main():
     ipf = int(sys.argv[2])
     seed = int(sys.argv[3])
 
-    memory = load_binary(bin_path)
-    cpu = CPU(memory, seed)
-
-    print(f"bin file = {bin_path}")
-    print(f"ipf      = {ipf}")
-    print(f"seed     = {seed}")
-
-    # dump_memory(memory)
-    # dump_registers(cpu)
+    cpu = run_headless(bin_path, ipf, seed)
+    print_run_summary(bin_path, ipf, seed, cpu)
 
 if __name__ == "__main__":
     main()

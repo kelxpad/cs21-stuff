@@ -142,6 +142,21 @@ def test_op1_immediate_offset():
 
     assert (cpu.operand_immediate_offset(decoded, 1) == 1)
 
+def test_op2_immediate_offset():
+    memory = [0] * 65536
+
+    opcode = 0x02
+
+    op1 = 0x00
+    op2 = 0x10
+
+    memory[0] = instruction_word(op1, op2, opcode)
+
+    cpu = CPU(memory, 0)
+    decoded = cpu.decode()
+
+    assert cpu.operand_immediate_offset(decoded, 2) == 1
+
 def test_dual_immediate_offsets():
     memory = [0] * 65536
 
@@ -158,6 +173,19 @@ def test_dual_immediate_offsets():
     assert (cpu.operand_immediate_offset(decoded, 1) == 1)
     assert (cpu.operand_immediate_offset(decoded, 2) == 2)
 
+def test_dual_immediate_values_2():
+    memory = [0] * 65536
+
+    memory[0] = instruction_word(0x10, 0x11, 0x02)
+
+    memory[1] = 0x1234
+    memory[2] = 0x5678
+
+    cpu = CPU(memory, 0)
+    decoded = cpu.decode()
+
+    assert cpu.operand_immediate(decoded, 1) == 0x1234
+    assert cpu.operand_immediate(decoded, 2) == 0x5678
 def test_read_register_plus_k():
     memory = [0] * 65536
     cpu = CPU(memory, 0)
