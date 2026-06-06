@@ -8,8 +8,9 @@ sys.path.append(str(root_dir))
 
 def test_quantize_exact_palette_colors():
     seed = 67
+    ipf = 67 # arbitrary for this test
     cpu = CPU([0] * 65536, seed)
-    display = Display(cpu=cpu, seed=seed)
+    display = Display(cpu=cpu, seed=seed, ipf=ipf)
     for i, (r,g,b) in enumerate(display.DAWNBRINGER16):
         pixel = (r << 16) | (g << 8) | b
 

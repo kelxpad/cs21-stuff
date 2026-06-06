@@ -70,6 +70,9 @@ class CPU:
         self.buffer1  = [0] * DISPLAY_PIXELS
         self.active_buffer = 0
 
+        # self.back_buffer[0] = 0xFFFF # checking if i hooked up the MMIO correctly, top-left pixel should become non-black
+        # self.swap_buffers()
+
     @property
     def front_buffer(self) -> Buffer:
         return self.buffer0 if self.active_buffer == 0 else self.buffer1
@@ -79,7 +82,10 @@ class CPU:
         return self.buffer1 if self.active_buffer == 0 else self.buffer0
     
     def swap_buffers(self) -> None:
-        self.active_buffer ^= 1 # toggle
+        self.active_buffer ^= 1 # toggle, when 0x9800 is written to, this triggers the swap
+
+    def set_input_button(self, pressed: bool) -> None:
+        self.button = 0x0001 if pressed else 0x0000
 
     def decode(self) -> DecodedInstruction:
         pc = self.regs[Reg.PC]
@@ -118,7 +124,7 @@ class CPU:
 
         return 1
 
-    def instruction_width(self, decoded: int) -> int:
+    def instruction_width(self, decoded: DecodedInstruction) -> int:
         # how many bytes wide is the instruction?
         # use amount of immediates as basis
 
@@ -176,7 +182,7 @@ class CPU:
 
         if DISPLAY_START <= addr <= DISPLAY_END:
             # Read operations directed to display device are ignored.
-            return
+            return 0
         
         if addr == BUTTON_ADDR:
             return self.button & 0x0001
@@ -193,15 +199,57 @@ class CPU:
         addr &= WORD_MASK
         value &= WORD_MASK
 
-        if addr == BUTTON_ADDR:
-            self.button = value & 0x0001
+        # Display MMIO
+        """
+        For this emulator, the display occupies addresses 0x9000-0x97FF.
+        From the specs, Arch-252 pixels are 32-bit values (e.g. 0x00RRGGBB).
+        But since the architecture is word-addressed, each memory write is
+        only 16 bits wide.
+
+        Therefore, each pixel occupies TWO consecutive display addresses:
+        Examples:
+        pixel 0:
+            0x9000 = low word (bits 15-0)
+            0x9001 = high word (bits 31-16)
+
+        pixel 1:
+            0x9002 = low word (bits 15-0)
+            0x9003 = high word
+
+        ...
+
+        pixel 1023:
+            0x97FE = low word
+            0x97FF = high word
+
+        Since 1024 pixels * 2 words/pixel = 2048 words,
+        the display MMIO region consumes exactly 0x800 == 2048 words.
+
+        By the project specs (as of June 6, 2026, 6:09 PM), all pixel
+        writes modify the INACTIVE display buffer, the back buffer.
+        """
+        if DISPLAY_START <= addr < DISPLAY_END:
+            offset = addr - DISPLAY_START
+
+            pixel_index = offset // 2
+            high_word = (offset % 2) == 1
+            pixel = self.back_buffer[pixel_index]
+
+            if high_word:
+                # replace bits 31-16
+                pixel = ((pixel & 0x0000FFFF) | (value << 16))
+            else: # low word
+                # replace bits 15-0
+                pixel = ((pixel & 0xFFFF0000) | value)
+            self.back_buffer[pixel_index] = pixel
             return
         
-        if addr == TICK_ADDR:
-            self.tick_counter = value
+        # Writing to 0x9800 swaps the active/inactive display buffers
+        if addr == DISPLAY_END:
+            self.swap_buffers()
             return
-        
-        if addr == RNG_ADDR:
+
+        if addr in {BUTTON_ADDR, TICK_ADDR, RNG_ADDR}:
             return
         
         self.memory[addr] = value
@@ -654,10 +702,10 @@ class CPU:
         self.tick_counter = (self.tick_counter + 1) & WORD_MASK # 16-bit value
 
 class Display:
-    def __init__(self, cpu: CPU, seed: int, cell_size: int = 8) -> None:
-
+    def __init__(self, cpu: CPU, seed: int, ipf: int, cell_size: int = 8) -> None: # 8 chosen as cell_size
         self.cpu = cpu
         self.cell_size = cell_size
+        self.instructions_per_frame = ipf
         self.width = DISPLAY_WIDTH * cell_size
         self.height = DISPLAY_HEIGHT * cell_size
 
@@ -667,7 +715,7 @@ class Display:
             (0x4e,0x4a,0x4e),	 # emperor	
             (0x44,0x24,0x34),	 # livid brown	
             (0x30,0x34,0x6d),	 # rhino	
-            (0x85,0x4c,0x30),	 # mule fawn	
+            (0x85,0x4c,0x30),	 # mule fawn
             (0x34,0x65,0x24),	 # woodland	
             (0x75,0x71,0x61),	 # pablo	
             (0xd0,0x46,0x48),	 # flush mahogany	
@@ -702,7 +750,7 @@ class Display:
                 color = self.quantize(pixel)
                 pyxel.pset(x, y, color)
     
-    def unpack_rgb(pixel: int) -> tuple[int, int, int]:
+    def unpack_rgb(self, pixel: int) -> tuple[int, int, int]:
         # given a 32-bit value 0x00RRGGBB, get (RR, GG, BB)
         r = (pixel >> 16) & 0xFF
         g = (pixel >>  8) & 0xFF
@@ -710,14 +758,19 @@ class Display:
         return r, g, b
 
     def update(self) -> None:
-        pass
+        self.cpu.set_input_button(pyxel.btn(pyxel.KEY_SPACE))
+
+        for _ in range(self.instructions_per_frame):
+            self.cpu.step()
 
     def draw(self) -> None:
         pyxel.cls(0)
 
         for y in range(DISPLAY_HEIGHT):
             for x in range(DISPLAY_WIDTH):
-                color = self.random_grid[y * DISPLAY_WIDTH + x]
+                pixel = self.cpu.front_buffer[y * DISPLAY_WIDTH + x]
+                color = self.quantize(pixel)
+                # color = self.random_grid[y * DISPLAY_WIDTH + x] # for random colors
                 pyxel.rect(
                     x * self.cell_size, 
                     y * self.cell_size, 
@@ -729,8 +782,8 @@ class Display:
     def run(self) -> None:
         pyxel.run(self.update, self.draw)
     
-    def quantize(self, pixel) -> None:
-        r, g, b = Display.unpack_rgb(pixel)
+    def quantize(self, pixel) -> int:
+        r, g, b = self.unpack_rgb(pixel)
 
         best_index = 0
         best_dist = float("inf")
@@ -948,7 +1001,7 @@ def main():
 
     memory = load_binary(bin_path)
     cpu = CPU(memory, seed)
-    Display(cpu, seed).run()
+    Display(cpu=cpu, seed=seed, ipf=ipf).run()
 
 if __name__ == "__main__":
     main()

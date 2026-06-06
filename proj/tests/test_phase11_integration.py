@@ -4,7 +4,7 @@ from pathlib import Path
 root_dir = Path(__file__).resolve().parent.parent
 sys.path.append(str(root_dir))
 
-from emulator import (BUTTON_ADDR,OPCODES,RNG_ADDR,TICK_ADDR,CPU,Reg,run_headless)
+from emulator import (OPCODES,RNG_ADDR,TICK_ADDR,CPU,Reg,run_headless)
 
 
 def instruction_word(op1, op2=0x00, opcode=0x02):
@@ -105,16 +105,6 @@ def test_tick_mmio_reads_current_tick_counter():
     cpu.tick_counter = 0x12345
 
     assert cpu.memory_read(TICK_ADDR) == 0x2345
-
-
-def test_button_mmio_reads_and_writes_low_bit_only():
-    cpu = CPU([0] * 65536, 123)
-
-    cpu.memory_write(BUTTON_ADDR, 0xFFFE)
-    assert cpu.memory_read(BUTTON_ADDR) == 0
-
-    cpu.memory_write(BUTTON_ADDR, 0xFFFF)
-    assert cpu.memory_read(BUTTON_ADDR) == 1
 
 
 def test_rng_mmio_is_deterministic_for_seed_and_ignores_writes():
