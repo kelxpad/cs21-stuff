@@ -1,9 +1,14 @@
 import sys
 import random
+import pyxel
+
 from enum import IntEnum, auto
 from dataclasses import dataclass
 
+# useful constants
 ADDRESS_SPACE_WORDS = 65536
+DISPLAY_WIDTH = DISPLAY_HEIGHT = 32
+DISPLAY_PIXELS = DISPLAY_WIDTH * DISPLAY_HEIGHT # 1024
 WORD_MASK = 0xFFFF
 
 # memory mapping
@@ -27,6 +32,8 @@ class DecodedInstruction:
     op1_encoding: int
     op2_encoding: int
 
+type Buffer = list[int
+                   ]
 # register stuff
 class Reg(IntEnum):
     PC = 0
@@ -58,6 +65,21 @@ class CPU:
             opcode: getattr(self, f"execute_{name}") 
             for opcode, name in INSTRUCTIONS.items()
         }
+
+        self.buffer0 = [0] * DISPLAY_PIXELS
+        self.buffer1  = [0] * DISPLAY_PIXELS
+        self.active_buffer = 0
+
+    @property
+    def front_buffer(self) -> Buffer:
+        return self.buffer0 if self.active_buffer == 0 else self.buffer1
+    
+    @property
+    def back_buffer(self) -> Buffer:
+        return self.buffer1 if self.active_buffer == 0 else self.buffer0
+    
+    def swap_buffers(self) -> None:
+        self.active_buffer ^= 1 # toggle
 
     def decode(self) -> DecodedInstruction:
         pc = self.regs[Reg.PC]
@@ -151,6 +173,10 @@ class CPU:
 
     def memory_read(self, addr):
         addr &= WORD_MASK
+
+        if DISPLAY_START <= addr <= DISPLAY_END:
+            # Read operations directed to display device are ignored.
+            return
         
         if addr == BUTTON_ADDR:
             return self.button & 0x0001
@@ -613,7 +639,7 @@ class CPU:
         Executes one Arch-252 instruction.
         """
         decoded = self.decode()
-        print(f"pc={self.regs[Reg.PC]:04X}", disassemble(decoded))        
+        # print(f"pc={self.regs[Reg.PC]:04X}", disassemble(decoded))        
         handler = self.handlers.get(decoded.opcode)
 
         if handler is None:
@@ -626,6 +652,105 @@ class CPU:
 
         self.instructions_executed += 1
         self.tick_counter = (self.tick_counter + 1) & WORD_MASK # 16-bit value
+
+class Display:
+    def __init__(self, cpu: CPU, seed: int, cell_size: int = 8) -> None:
+
+        self.cpu = cpu
+        self.cell_size = cell_size
+        self.width = DISPLAY_WIDTH * cell_size
+        self.height = DISPLAY_HEIGHT * cell_size
+
+        # initialize dawnbringer hex codes here
+        # split into triples for easier quantization
+        self.DAWNBRINGER16 = [
+            (0x4e,0x4a,0x4e),	 # emperor	
+            (0x44,0x24,0x34),	 # livid brown	
+            (0x30,0x34,0x6d),	 # rhino	
+            (0x85,0x4c,0x30),	 # mule fawn	
+            (0x34,0x65,0x24),	 # woodland	
+            (0x75,0x71,0x61),	 # pablo	
+            (0xd0,0x46,0x48),	 # flush mahogany	
+            (0x59,0x7d,0xce),	 # danube	
+            (0xd2,0x7d,0x2c),	 # brandy punch	
+            (0x6d,0xaa,0x2c),	 # olive drab	
+            (0x85,0x95,0xa1),	 # regent gray	
+            (0xd2,0xaa,0x99),	 # eunry	
+            (0x6d,0xc2,0xca),	 # downy	
+            (0xda,0xd4,0x5e),	 # tacha	
+            (0x14,0x0c,0x1c),	 # ebony	
+            (0xde,0xee,0xd6),	 # zanah
+        ]
+        rng = random.Random(seed)
+        self.random_grid = [
+            rng.randrange(16)
+            for _ in range(DISPLAY_PIXELS)
+        ]
+
+        pyxel.init(
+            self.width,
+            self.height,
+            title="Arch-252 Emulator",
+        )
+
+        for i, (r, g, b) in enumerate(self.DAWNBRINGER16):
+            pyxel.colors[i] = (r << 16) | (g << 8) | b
+        
+        for y in range(DISPLAY_HEIGHT):
+            for x in range(DISPLAY_WIDTH):
+                pixel = cpu.front_buffer[y * 32 + x]
+                color = self.quantize(pixel)
+                pyxel.pset(x, y, color)
+    
+    def unpack_rgb(pixel: int) -> tuple[int, int, int]:
+        # given a 32-bit value 0x00RRGGBB, get (RR, GG, BB)
+        r = (pixel >> 16) & 0xFF
+        g = (pixel >>  8) & 0xFF
+        b = pixel & 0xFF
+        return r, g, b
+
+    def update(self) -> None:
+        pass
+
+    def draw(self) -> None:
+        pyxel.cls(0)
+
+        for y in range(DISPLAY_HEIGHT):
+            for x in range(DISPLAY_WIDTH):
+                color = self.random_grid[y * DISPLAY_WIDTH + x]
+                pyxel.rect(
+                    x * self.cell_size, 
+                    y * self.cell_size, 
+                    self.cell_size, 
+                    self.cell_size, 
+                    color
+                )
+
+    def run(self) -> None:
+        pyxel.run(self.update, self.draw)
+    
+    def quantize(self, pixel) -> None:
+        r, g, b = Display.unpack_rgb(pixel)
+
+        best_index = 0
+        best_dist = float("inf")
+
+        for i, (pr, pg, pb) in enumerate(self.DAWNBRINGER16):
+            dist = (
+                (r - pr)**2 +
+                (g - pg)**2 + 
+                (b - pb)**2
+            )
+
+            if dist < best_dist:
+                best_dist = dist
+                best_index = i
+            
+        return best_index # 16-bit value
+
+    def draw_information_panel(self):
+        # function saved for phases 16-17
+        ...
 
 # mapping for @register+k
 REGISTER_PLUS_K = {
@@ -818,8 +943,12 @@ def main():
     ipf = int(sys.argv[2])
     seed = int(sys.argv[3])
 
-    cpu = run_headless(bin_path, ipf, seed)
-    print_run_summary(bin_path, ipf, seed, cpu)
+    if ipf < 0:
+        raise ValueError("ipf must be non-negative")
+
+    memory = load_binary(bin_path)
+    cpu = CPU(memory, seed)
+    Display(cpu, seed).run()
 
 if __name__ == "__main__":
     main()
